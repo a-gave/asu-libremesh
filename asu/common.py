@@ -116,6 +116,7 @@ def get_request_hash(req: dict) -> str:
                 req.get("profile", "").replace(",", "_"),
                 get_packages_hash(req.get("packages", [])),
                 get_manifest_hash(req.get("packages_versions", {})),
+                get_configs_hash(req.get("configs", [])),
                 str(req.get("diff_packages", False)),
                 req.get("filesystem", ""),
                 get_str_hash(req.get("defaults", "")),
@@ -141,6 +142,21 @@ def get_packages_hash(packages: list) -> str:
         str: hash of `req`
     """
     return get_str_hash(" ".join(sorted(list(set(packages)))), 12)
+
+
+def get_configs_hash(configs: list) -> str:
+    """Return sha256sum of configs list
+
+    Duplicate configs are automatically removed and the list is sorted to be
+    reproducible
+
+    Args:
+        configs (list): list of configs
+
+    Returns:
+        str: hash of `req`
+    """
+    return get_str_hash(" ".join(sorted(list(set(configs)))), 12)
 
 
 def fingerprint_pubkey_usign(pubkey: str) -> str:

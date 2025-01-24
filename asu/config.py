@@ -45,12 +45,17 @@ class Settings(BaseSettings):
     public_path: Path = Path.cwd() / "public"
     redis_url: str = "redis://localhost:6379"
     upstream_url: str = "https://downloads.openwrt.org"
-    allow_defaults: bool = False
+    allow_defaults: bool = True
     async_queue: bool = True
     branches_file: Union[str, Path, None] = None
     max_custom_rootfs_size_mb: int = 1024
     max_defaults_length: int = 20480
-    repository_allow_list: list = []
+    repository_allow_list: list = [
+        "http://downloads.openwrt.org",
+        "https://downloads.openwrt.org",
+        "http://feed.libremesh.org",
+        "https://feed.libremesh.org",
+    ]
     base_container: str = "ghcr.io/openwrt/imagebuilder"
     container_socket_path: str = ""
     container_identity: str = ""
@@ -62,18 +67,25 @@ class Settings(BaseSettings):
             "path_packages": "DEPRECATED",
             "package_changes": package_changes(),
         },
-        "24.10": release(27990),
-        "23.05": release(23069),
-        "22.03": release(19160),
-        "21.02": release(15812, enabled=True),  # Enabled for now...
+        "24.10": release(27990, enabled=True),
+        "23.05": release(23069, enabled=True),
+        "22.03": release(19160, enabled=False),
+        "21.02": release(15812, enabled=False),  # Enabled for now...
     }
     server_stats: str = ""
     log_level: str = "INFO"
-    squid_cache: bool = False
+    squid_cache: bool = True
     build_ttl: str = "3h"
     build_defaults_ttl: str = "30m"
     build_failure_ttl: str = "10m"
     max_pending_jobs: int = 200
-
+    configs_allowed: list = [
+        "CONFIG_VERSION_DIST",
+        "CONFIG_VERSION_NUMBER",
+        "CONFIG_TARGET_ROOTFS_TARGZ",
+        # 'CONFIG_TARGET_ROOTFS_JFFS2',
+        # 'CONFIG_TARGET_ROOTFS_SQUASHFS'
+    ]
+    proxy_url: str = "http://172.17.0.1:3128"
 
 settings = Settings()

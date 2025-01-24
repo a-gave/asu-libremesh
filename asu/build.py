@@ -41,6 +41,8 @@ def build(build_request: BuildRequest, job=None):
     """
 
     build_start: float = perf_counter()
+#    if (build_request.version != '23.05.5'):
+#        return
 
     request_hash = get_request_hash(build_request)
     bin_dir: Path = settings.public_path / "store" / request_hash
@@ -84,9 +86,10 @@ def build(build_request: BuildRequest, job=None):
             {
                 "UPSTREAM_URL": settings.upstream_url.replace("https", "http"),
                 "use_proxy": "on",
-                "http_proxy": "http://127.0.0.1:3128",
+                "http_proxy": settings.proxy_url,
             }
         )
+
 
     job.meta["imagebuilder_status"] = "container_setup"
     job.save_meta()
@@ -120,10 +123,10 @@ def build(build_request: BuildRequest, job=None):
                 },
             )
 
-    if build_request.repositories:
-        log.debug("Found extra repos")
+    if build_request.custom_repositories:
+        log.debug("Found custom repos")
         repositories = ""
-        for name, repo in build_request.repositories.items():
+        for name, repo in build_request.custom_repositories.items():
             if repo.startswith(tuple(settings.repository_allow_list)):
                 repositories += f"src/gz {name} {repo}\n"
             else:
@@ -142,6 +145,26 @@ def build(build_request: BuildRequest, job=None):
             },
         )
 
+    if build_request.repositories:
+        log.debug("Found extra repos")
+        repositories = ""
+        for name, repo in build_request.repositories.items():
+            if repo.startswith(tuple(settings.repository_allow_list)):
+                repositories += f"src/gz {name} {repo}\n"
+            else:
+                report_error(job, f"Repository {repo} not allowed")
+
+        (bin_dir / "repositories.conf").write_text(repositories)
+
+        mounts.append(
+            {
+                "type": "bind",
+                "source": str(bin_dir / "repositories.conf"),
+                "target": "/builder/repositories.conf_local",
+                "read_only": True,
+            },
+        )
+
     if build_request.defaults:
         log.debug("Found defaults")
 
@@ -155,6 +178,23 @@ def build(build_request: BuildRequest, job=None):
                 "target": str(bin_dir / "files"),
                 "read_only": True,
             },
+        )
+
+    if build_request.configs:
+        log.debug("Found extra configs")
+        configs = ""
+        for config in build_request.configs:
+            configs += f"{config}\n"
+
+        (bin_dir / ".config_local").write_text(configs)
+
+        mounts.append(
+            {
+                "type": "bind",
+                "source": str(bin_dir / ".config_local"),
+                "target": "/builder/.config_local",
+                "read_only": True,
+            }
         )
 
     log.debug("Mounts: %s", mounts)
@@ -222,24 +262,64 @@ def build(build_request: BuildRequest, job=None):
         )
         log.debug(f"Diffed packages: {build_cmd_packages}")
 
+    if build_request.repositories:
+        log.info("Appending local repositories")
+        returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+            container,
+            [
+                "sh",
+                "-c",
+                ("cat /builder/repositories.conf_local >> /builder/repositories.conf"),
+            ],
+        )
+        if returncode:
+            report_error(job, "Could not append local repositories")
+
     job.meta["imagebuilder_status"] = "validate_manifest"
+    job.meta["make_manifest_cmd"] = [
+        "make",
+        "manifest",
+        f"PROFILE={build_request.profile}",
+        f"PACKAGES={' '.join(build_cmd_packages)}",
+        "STRIP_ABI=1",
+    ]
     job.save_meta()
 
-    if settings.squid_cache and not is_snapshot_build(build_request.version):
+    if settings.squid_cache:
         log.info("Disabling HTTPS for repositories")
         # Once APK is used for a stable release, handle `repositories`, too
         run_cmd(container, ["sed", "-i", "s|https|http|g", "repositories.conf"])
 
     returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
         container,
-        [
-            "make",
-            "manifest",
-            f"PROFILE={build_request.profile}",
-            f"PACKAGES={' '.join(build_cmd_packages)}",
-            "STRIP_ABI=1",
-        ],
+        job.meta["make_manifest_cmd"]
     )
+
+    job.save_meta()
+
+    if returncode:
+        if settings.squid_cache:
+            if any(err in job.meta["stderr"] for err in ["Checksum or size mismatch"]):
+                returncode = 0
+                # retry and update cache
+                # apk has '--force-refresh' also to avoid proxies, do not refresh kmods that are cached longer
+                # try if possible to refresh cache:
+                # # run_cmd(container, ["alias apk="apk --force-refresh"])
+
+                # opkg fallback to no_proxy try again
+                run_cmd(container, ["rm", "-rf", "/builder/dl/*"])
+                run_cmd(container, ["export http_proxy= use_proxy="])
+                
+                returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                    container,
+                    job.meta["make_manifest_cmd"]
+                )
+                if returncode:
+                    container.kill()
+                    report_error(job, "Impossible package selection")
+        else:
+            container.kill()
+            report_error(job, "Impossible package selection")
 
     job.save_meta()
 
@@ -256,6 +336,21 @@ def build(build_request: BuildRequest, job=None):
 
     packages_hash: str = get_packages_hash(manifest.keys())
     log.debug(f"Packages Hash: {packages_hash}")
+
+    if build_request.configs:
+        log.info("Applying local configs")
+        returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+            container,
+            [
+                "sh",
+                "-c",
+                (
+                    "for config in $(grep '#' .config_local | awk '{print $2}'); do sed -i 's/'$config'.*//' .config ; done; cat .config_local >> .config"
+                ),
+            ],
+        )
+        if returncode:
+            report_error(job, "Could not apply local configs")
 
     job.meta["build_cmd"] = [
         "make",

@@ -19,6 +19,13 @@ from asu.util import (
     reload_versions,
 )
 
+import re
+
+configs_extract = r"^# (CONFIG_[\w_.-]) is not set|^(CONFIG_[\w_.-]+)"
+
+excluded_targets = open("/app/excluded_targets").readlines()
+excluded_targets = [x.replace('\n','') for x in excluded_targets]
+
 router = APIRouter()
 
 
@@ -89,6 +96,15 @@ def validate_request(
 
     if build_request.distro not in get_distros():
         return validation_failure(f"Unsupported distro: {build_request.distro}")
+
+    if build_request.target in excluded_targets:
+        return validation_failure(f"Target not supported: {build_request.target[0]}")
+
+    if build_request.configs:
+        for config in build_request.configs:
+            config_key = re.search(configs_extract, config)
+            if config_key[0] not in settings.configs_allowed:
+                return validation_failure(f"Illegal config requested: {config_key[0]}")
 
     branch = get_branch(build_request.version)["name"]
 

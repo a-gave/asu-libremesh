@@ -3,7 +3,7 @@ store/
 site/
 redis/
 public/
-squid/
+/squid/
 poetry.lock
 json/
 instance/
@@ -27,3 +27,11 @@ asu.egg-info/
 .coverage
 **/__pycache__/
 *.pyc
+
+# asu-libremesh
+*~
+redis-data/
+
+# grafana
+grafana_data/
+!grafana/usr/share/grafana/public

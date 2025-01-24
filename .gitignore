@@ -27,3 +27,10 @@ asu.egg-info/
 .coverage
 **/__pycache__/
 *.pyc
+
+# asu-libremesh
+*~
+
+# grafana
+grafana_data/
+!grafana/usr/share/grafana/public

@@ -1,0 +1,75 @@
+version: "3"
+
+volumes:
+  redis:
+
+services:
+  server:
+    image: "asu:latest"
+    build:
+      context: ./
+      dockerfile: Containerfile
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis/
+    ports:
+      - "0.0.0.0:8001:8000"
+    depends_on:
+      - redis
+    volumes:
+      - $PUBLIC_PATH:/app/public:rw
+      - /builder/asu:/app/asu:rw
+      - ./excluded_targets:/app/asu/excluded_targets:ro
+
+  worker:
+    image: "asu:latest"
+    build:
+      context: ./
+      dockerfile: Containerfile
+    restart: unless-stopped
+    command: rqworker --with-scheduler
+    environment:
+      - CONTAINER_HOST=unix://$CONTAINER_SOCK
+      - REDIS_URL=redis://redis/
+    volumes:
+      - $PUBLIC_PATH:/app/public:rw
+      - $CONTAINER_SOCK:$CONTAINER_SOCK:rw
+      - /builder/asu:/app/asu:rw
+    depends_on:
+      - redis
+
+  redis:
+    image: "docker.io/redis/redis-stack-server"
+    restart: unless-stopped
+    volumes:
+      - redis:/data/:rw
+
+  squid:
+    image: "docker.io/ubuntu/squid:latest"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3128:3128"
+    volumes:
+      - ".squid.conf:/etc/squid/conf.d/snippet.conf:ro"
+      - "./squid/:/var/spool/squid/:rw"
+
+  grafana:
+    image: "grafana/grafana"
+    restart: unless-stopped
+    user: '472:0'
+    ports:
+      - "0.0.0.0:3000:3000"
+    environment:
+      - GF_INSTALL_PLUGINS=redis-datasource
+      - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
+      - GF_SECURITY_ADMIN_USER=$GF_SECURITY_ADMIN_USER
+      - GF_SECURITY_ADMIN_PASSWORD=$GF_SECURITY_ADMIN_PASSWORD
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+        #- GF_AUTH_ANONYMOUS_ORG_NAME=Public
+      - GF_SERVER_ROOT_URL=https://sysupgrade.antennine.campiinrete.org/stats/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - "./grafana_data:/var/lib/grafana:rw"
+      - "./grafana/usr/share/grafana/public/dashboards:/usr/share/grafana/public/dashboards:rw"
+      - "./grafana/etc/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:rw"

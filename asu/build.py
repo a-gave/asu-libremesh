@@ -39,6 +39,9 @@ def build(build_request: BuildRequest, job=None):
         request (dict): Contains all properties of requested image
     """
 
+#    if (build_request.version != '23.05.5'):
+#        return
+
     request_hash = get_request_hash(build_request)
     bin_dir: Path = settings.public_path / "store" / request_hash
     bin_dir.mkdir(parents=True, exist_ok=True)
@@ -271,23 +274,51 @@ def build(build_request: BuildRequest, job=None):
             report_error(job, "Could not append local repositories")
 
     job.meta["imagebuilder_status"] = "validate_manifest"
+    job.meta["make_manifest_cmd"] = [
+        "make",
+        "manifest",
+        f"PROFILE={build_request.profile}",
+        f"PACKAGES={' '.join(build_cmd_packages)}",
+        "STRIP_ABI=1",
+    ]
     job.save_meta()
 
-    if settings.squid_cache and not is_snapshot_build(build_request.version):
+    if settings.squid_cache:
         log.info("Disabling HTTPS for repositories")
         # Once APK is used for a stable release, handle `repositories`, too
-        run_cmd(container, ["sed", "-i", "s|https|http|g", "repositories.conf"])
+        run_cmd(container, ["sed", "-i", "s|https|http|g", "repositories*"])
 
     returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
         container,
-        [
-            "make",
-            "manifest",
-            f"PROFILE={build_request.profile}",
-            f"PACKAGES={' '.join(build_cmd_packages)}",
-            "STRIP_ABI=1",
-        ],
+        job.meta["make_manifest_cmd"]
     )
+
+    job.save_meta()
+
+    if returncode:
+        if settings.squid_cache:
+            if any(err in job.meta["stderr"] for err in ["Checksum or size mismatch"]):
+                returncode = 0
+                # retry and update cache
+                # apk has '--force-refresh' also to avoid proxies, do not refresh kmods that are cached longer
+                # try if possible to refresh cache:
+                # # run_cmd(container, ["alias apk="apk --force-refresh"])
+
+                # opkg fallback to https and try again
+                run_cmd(container, ["rm", "-rf", "/builder/dl/*"])
+                # run_cmd(container, ["export http_proxy= use_proxy="])
+                run_cmd(container, ["sed", "-i", "s|https|http|g", "repositories.conf"])
+                
+                returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                    container,
+                    job.meta["make_manifest_cmd"]
+                )
+                if returncode:
+                    container.kill()
+                    report_error(job, "Impossible package selection")
+        else:
+            container.kill()
+            report_error(job, "Impossible package selection")
 
     job.save_meta()
 

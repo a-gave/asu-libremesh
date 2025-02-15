@@ -57,7 +57,8 @@ class Settings(BaseSettings):
         "http://feed.libremesh.org",
         "https://feed.libremesh.org",
     ]
-    base_container: str = "ghcr.io/openwrt/imagebuilder"
+    # base_container: str = "ghcr.io/openwrt/imagebuilder"
+    base_container: str = "ghcr.io/openwrt/imagebuilder-alpine"    
     container_host: str = "localhost"
     container_identity: str = ""
     branches: dict = {

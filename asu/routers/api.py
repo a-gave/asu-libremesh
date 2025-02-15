@@ -23,7 +23,7 @@ import re
 
 configs_extract = r"^# (CONFIG_[\w_.-]) is not set|^(CONFIG_[\w_.-]+)"
 
-excluded_targets = open("../excluded_targets").readlines()
+excluded_targets = open("/app/excluded_targets").readlines()
 excluded_targets = [x.replace('\n','') for x in excluded_targets]
 
 router = APIRouter()

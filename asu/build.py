@@ -59,7 +59,7 @@ def build(build_request: BuildRequest, job=None):
 
     podman = get_podman()
 
-    log.debug(f"Podman version: {podman.version()}")
+    #log.debug(f"Podman version: {podman.version()}")
 
     container_version_tag = get_container_version_tag(build_request.version)
     log.debug(
@@ -94,9 +94,9 @@ def build(build_request: BuildRequest, job=None):
     job.meta["imagebuilder_status"] = "container_setup"
     job.save_meta()
 
-    log.info(f"Pulling {image}...")
-    podman.images.pull(image)
-    log.info(f"Pulling {image}... done")
+#    log.info(f"Pulling {image}...")
+#    podman.images.pull(image)
+#    log.info(f"Pulling {image}... done")
 
     bin_dir.mkdir(parents=True, exist_ok=True)
     log.debug("Created store path: %s", bin_dir)
@@ -154,17 +154,6 @@ def build(build_request: BuildRequest, job=None):
             else:
                 report_error(job, f"Repository {repo} not allowed")
 
-        (bin_dir / "repositories.conf").write_text(repositories)
-
-        mounts.append(
-            {
-                "type": "bind",
-                "source": str(bin_dir / "repositories.conf"),
-                "target": "/builder/repositories.conf_local",
-                "read_only": True,
-            },
-        )
-
     if build_request.defaults:
         log.debug("Found defaults")
 
@@ -178,23 +167,6 @@ def build(build_request: BuildRequest, job=None):
                 "target": str(bin_dir / "files"),
                 "read_only": True,
             },
-        )
-
-    if build_request.configs:
-        log.debug("Found extra configs")
-        configs = ""
-        for config in build_request.configs:
-            configs += f"{config}\n"
-
-        (bin_dir / ".config_local").write_text(configs)
-
-        mounts.append(
-            {
-                "type": "bind",
-                "source": str(bin_dir / ".config_local"),
-                "target": "/builder/.config_local",
-                "read_only": True,
-            }
         )
 
     log.debug("Mounts: %s", mounts)
@@ -265,16 +237,8 @@ def build(build_request: BuildRequest, job=None):
     if build_request.repositories:
         log.info("Appending local repositories")
         returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
-            container,
-            [
-                "sh",
-                "-c",
-                ("cat /builder/repositories.conf_local >> /builder/repositories.conf"),
-            ],
+            container, ["sh", "-c", (f"echo -e '{repositories}' >> /builder/repositories.conf")],
         )
-        if returncode:
-            report_error(job, "Could not append local repositories")
-
     job.meta["imagebuilder_status"] = "validate_manifest"
     job.meta["make_manifest_cmd"] = [
         "make",
@@ -289,37 +253,55 @@ def build(build_request: BuildRequest, job=None):
         log.info("Disabling HTTPS for repositories")
         # Once APK is used for a stable release, handle `repositories`, too
         run_cmd(container, ["sed", "-i", "s|https|http|g", "repositories.conf"])
+        #run_cmd(container, ["sed", "-i", "s|openwrt.mirror.garr.it/openwrt|downloads.openwrt.org|g", "repositories.conf"])
+
 
     returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
         container,
         job.meta["make_manifest_cmd"]
     )
 
-    job.save_meta()
+    if returncode and settings.squid_cache:
 
-    if returncode:
-        if settings.squid_cache:
-            if any(err in job.meta["stderr"] for err in ["Checksum or size mismatch"]):
+        if any(err in job.meta["stderr"] for err in ["Failed to download", "Cannot install package"]):
+            log.info('Mirror dropped connection or package not found')
+            # fallback to another mirror
+            run_cmd(container, ["sed", "-i", f"s|{settings.feed_repo_url}|{settings.feed_mirror_url}|g", "repositories.conf"])
+
+            for x in range(1,3):
+                log.info(f'Retrying {x}/2')
                 returncode = 0
-                # retry and update cache
-                # apk has '--force-refresh' also to avoid proxies, do not refresh kmods that are cached longer
-                # try if possible to refresh cache:
-                # # run_cmd(container, ["alias apk="apk --force-refresh"])
-
-                # opkg fallback to no_proxy try again
-                run_cmd(container, ["rm", "-rf", "/builder/dl/*"])
-                run_cmd(container, ["export http_proxy= use_proxy="])
-                
                 returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
                     container,
                     job.meta["make_manifest_cmd"]
                 )
-                if returncode:
-                    container.kill()
-                    report_error(job, "Impossible package selection")
-        else:
-            container.kill()
-            report_error(job, "Impossible package selection")
+                if returncode == 0:
+                    break
+            
+            if returncode:
+                log.info(f'Fallback to another mirror')
+                run_cmd(container, ["sed", "-i", f"s|{settings.feed_repo_url}|{settings.feed_mirror_url}|g", "repositories.conf"])
+                returncode = 0
+                returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                    container,
+                    job.meta["make_manifest_cmd"]
+                )
+
+        elif any(err in job.meta["stderr"] for err in ["package index are corrupt"]):
+               log.info('Retrying without proxy')
+               returncode = 0
+               # retry and update cache
+               # apk has '--force-refresh' also to avoid proxies, do not refresh kmods that are cached longer
+               # try if possible to refresh cache:
+               # # run_cmd(container, ["alias apk="apk --force-refresh"])
+               # opkg fallback to no_proxy try again
+               run_cmd(container, ["rm", "-rf", "/builder/dl/*"])
+               run_cmd(container, ["export", "http_proxy=", "use_proxy="])
+               #run_cmd(container, ["sed", "-i", "s|http|https|g", "repositories.conf"])
+               returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                   container,
+                   job.meta["make_manifest_cmd"]
+               )
 
     job.save_meta()
 
@@ -339,13 +321,13 @@ def build(build_request: BuildRequest, job=None):
 
     if build_request.configs:
         log.info("Applying local configs")
+        configs = f"{'\n'.join(build_request.configs)}"
         returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
-            container,
-            [
+            container, [
                 "sh",
                 "-c",
                 (
-                    "for config in $(grep '#' .config_local | awk '{print $2}'); do sed -i 's/'$config'.*//' .config ; done; cat .config_local >> .config"
+                    f"for config in $(grep '#' '{configs}' | cut -c 2); do sed -i 's/'$config'.*//' /builder/.config ; done; echo '{configs}' >> /builder/.config"
                 ),
             ],
         )

@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     allow_defaults: bool = True
     async_queue: bool = True
     branches_file: Union[str, Path, None] = None
-    max_custom_rootfs_size_mb: int = 1024
+    max_custom_rootfs_size_mb: int = 256
     max_defaults_length: int = 20480
     repository_allow_list: list = [
         "http://downloads.openwrt.org",
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
         "http://feed.libremesh.org",
         "https://feed.libremesh.org",
     ]
-    base_container: str = "ghcr.io/openwrt/imagebuilder"
+    base_container: str = "ghcr.io/openwrt/imagebuilder-alpine"
     container_socket_path: str = ""
     container_identity: str = ""
     branches: dict = {
@@ -87,5 +87,7 @@ class Settings(BaseSettings):
         # 'CONFIG_TARGET_ROOTFS_SQUASHFS'
     ]
     proxy_url: str = "http://172.17.0.1:3128"
+    feed_repo_url: str = "openwrt.mirror.garr.it/openwrt"
+    feed_mirror_url: str = "downloads.openwrt.org"
 
 settings = Settings()

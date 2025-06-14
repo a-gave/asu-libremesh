@@ -145,14 +145,6 @@ class BuildRequest(BaseModel):
             """.strip()
         ),
     ] = {}
-    custom_repositories: Annotated[
-        dict[str, str],
-        Field(
-            description="""
-                Custom repositories for user packages.
-            """.strip()
-        ),
-    ] = {}
     repository_keys: Annotated[
         list[str],
         Field(

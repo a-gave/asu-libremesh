@@ -123,28 +123,6 @@ def build(build_request: BuildRequest, job=None):
                 },
             )
 
-    if build_request.custom_repositories:
-        log.debug("Found custom repos")
-        repositories = ""
-        for name, repo in build_request.custom_repositories.items():
-            if repo.startswith(tuple(settings.repository_allow_list)):
-                repositories += f"src/gz {name} {repo}\n"
-            else:
-                report_error(job, f"Repository {repo} not allowed")
-
-        repositories += "src imagebuilder file:packages\noption check_signature"
-
-        (bin_dir / "repositories.conf").write_text(repositories)
-
-        mounts.append(
-            {
-                "type": "bind",
-                "source": str(bin_dir / "repositories.conf"),
-                "target": "/builder/repositories.conf",
-                "read_only": True,
-            },
-        )
-
     if build_request.repositories:
         log.debug("Found extra repos")
         repositories = ""

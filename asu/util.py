@@ -157,7 +157,6 @@ def get_request_hash(build_request: BuildRequest) -> str:
                 get_packages_hash(
                     build_request.packages_versions.keys() or build_request.packages
                 ),
-                get_configs_hash(build_request.configs),
                 get_manifest_hash(build_request.packages_versions),
                 str(build_request.diff_packages),
                 "",  # build_request.filesystem
@@ -165,6 +164,7 @@ def get_request_hash(build_request: BuildRequest) -> str:
                 str(build_request.rootfs_size_mb),
                 str(build_request.repository_keys),
                 str(build_request.repositories),
+                build_request.configs != [] and get_configs_hash(build_request.configs) or "",
             ]
         ),
     )

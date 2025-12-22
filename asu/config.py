@@ -71,8 +71,13 @@ class Settings(BaseSettings):
     branches_file: Union[str, Path, None] = None
     max_custom_rootfs_size_mb: int = 1024
     max_defaults_length: int = 20480
-    repository_allow_list: list = []
-    base_container: str = "ghcr.io/openwrt/imagebuilder"
+    repository_allow_list: list = [
+        "http://downloads.openwrt.org",
+        "https://downloads.openwrt.org",
+        "http://feed.libremesh.org",
+        "https://feed.libremesh.org",
+    ]
+    base_container: str = "docker.io/agave0/openwrt-imagebuilder"
     container_socket_path: str = ""
     container_identity: str = ""
     branches: dict = {
@@ -82,12 +87,37 @@ class Settings(BaseSettings):
             "snapshot": True,
             "path_packages": "DEPRECATED",
             "package_changes": package_changes(),
+            "versions": ["SNAPSHOT"],
         },
-        "25.12": release(32295),
-        "24.10": release(27990),
-        "23.05": release(23069),
-        "22.03": release(19160),
-        "21.02": release(15812, enabled=True),  # Enabled for now...
+        "25.12": {
+            "path": "releases/{version}",
+            "enabled": True,
+            "snapshot": True,
+            "path_packages": "DEPRECATED",
+            "branch_off_rev": 32295,
+            "package_changes": package_changes(32295),
+            "versions": ["25-12-SNAPSHOT"],
+        },
+        "24.10": {
+            "path": "releases/{version}",
+            "enabled": True,
+            "snapshot": True,
+            "path_packages": "DEPRECATED",
+            "branch_off_rev": 27990,
+            "package_changes": package_changes(27990),
+            "versions": ["24.10.5", "24.10.4", "24.10-SNAPSHOT"],
+        },
+        "23.05": {
+            "path": "releases/{version}",
+            "enabled": True,
+            "snapshot": True,
+            "path_packages": "DEPRECATED",
+            "branch_off_rev": 23069,
+            "package_changes": package_changes(23069),
+            "versions": ["23.05.6", "23.05.5", "23.05-SNAPSHOT"],
+        },
+        # "22.03": release(19160, enabled=False),
+        # "21.02": release(15812, enabled=False),  # Enabled for now...
     }
     server_stats: str = ""
     log_level: str = "INFO"
@@ -97,6 +127,16 @@ class Settings(BaseSettings):
     build_failure_ttl: str = "10m"
     max_pending_jobs: int = 200
     job_timeout: str = "10m"
+    configs_allowed: list = [
+        "CONFIG_VERSION_DIST",
+        "CONFIG_VERSION_NUMBER",
+        "CONFIG_TARGET_ROOTFS_TARGZ",
+        # 'CONFIG_TARGET_ROOTFS_JFFS2',
+        # 'CONFIG_TARGET_ROOTFS_SQUASHFS'
+    ]
+    file_host: str = "openwrt.mirror.garr.it/openwrt"
+    allow_instruction_build_packages: bool = False
+    allow_pull_container_images: bool = True
 
 
 settings = Settings()

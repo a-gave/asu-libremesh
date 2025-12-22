@@ -7,6 +7,9 @@ from asu.config import settings
 STRING_PATTERN = r"^[\w.,-]*$"
 TARGET_PATTERN = r"^[\w]*/[\w]*$"
 PKG_VERSION_PATTERN = r"^[\w+.,~-]*$"
+CONFIG_PATTERN = (
+    r"^(# CONFIG_[\w_.-]+ is not set|CONFIG_[\w_.-]+=([\w_.-]+$|\"[^\"][\w_.-]+\"))$"
+)
 
 
 class BuildRequest(BaseModel):
@@ -23,7 +26,7 @@ class BuildRequest(BaseModel):
     version: Annotated[
         str,
         Field(
-            examples=["23.05.2"],
+            examples=["24.10.5"],
             description="""
                 It is recommended to always upgrade to the latest version,
                 however it is possible to request older images for testing.
@@ -34,7 +37,7 @@ class BuildRequest(BaseModel):
     version_code: Annotated[
         str,
         Field(
-            examples=["r26741-dcc4307205"],
+            examples=["r29087-d9c5716d1d"],
             description="""
                 It is possible to send the expected revision.  This allows to
                 show the revision within clients before the request. If the
@@ -159,3 +162,31 @@ class BuildRequest(BaseModel):
             """.strip(),
         ),
     ] = None
+    configs: Annotated[
+        list[Annotated[str, Field(pattern=CONFIG_PATTERN)]],
+        Field(
+            examples=[
+                [
+                    "CONFIG_VERSION_DIST=LibreMesh",
+                    "CONFIG_VERSION_NUMBER=master-ow24.10.5",
+                    "CONFIG_TARGET_ROOTFS_TARGZ=y",
+                    "# CONFIG_TARGET_ROOTFS_JFFS2 is not set",
+                    "# CONFIG_TARGET_ROOTFS_SQUASHFS is not set",
+                ]
+            ],
+            description="""
+                List of configs, only the few ones not related to kernel/packages 
+                as they will not be recompiled.
+            """.strip(),
+        ),
+    ] = []
+    imagebuilder: Annotated[
+        str,
+        Field(
+            examples=["small-flash"],
+            description="""
+                Additional imagebuilder types
+            """.strip(),
+            pattern=STRING_PATTERN,
+        ),
+    ] = ""

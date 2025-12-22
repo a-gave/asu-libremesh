@@ -1,27 +1,36 @@
-#{
-#	auto_https disable_redirects
-#	preferred_chains {
-#		root_common_name "ISRG Root X1"
-#	}
-#}
-#
-#sysupgrade.openwrt.org sysupgrade.openwrt.org:80 {
-#	root * /path/to/asu/
-#	file_server /json/
-#	file_server /store/
-#	header Access-Control-Allow-Methods "POST, GET, OPTIONS"
-#	header Access-Control-Allow-Headers "*"
-#	header Access-Control-Allow-Origin "*"
-#	reverse_proxy * localhost:8000
-#}
+(cors) {
+	@cors_preflight method OPTIONS
+	@cors header Origin {args.0}
+
+	handle @cors_preflight {
+		header Access-Control-Allow-Origin "{args.0}"
+		header Access-Control-Allow-Headers "Content-Type"
+		respond "" 204
+	}
+
+	handle @cors {
+		header Access-Control-Allow-Origin "{args.0}"
+	}
+}
 
 :80 {
-	root * /site/
-	file_server /json/
-	file_server /store/
+	import cors *
+
+	root * /builder/asu/
+
+	handle_path /store* {
+		root * /builder/public/store
+		file_server
+	}
+
 	header Access-Control-Allow-Methods "POST, GET, OPTIONS"
 	header Access-Control-Allow-Headers "*"
 	header Access-Control-Allow-Origin "*"
-	reverse_proxy * server:8000
-	reverse_proxy /stats grafana:3000
+	reverse_proxy * http://127.0.0.1:8000
+
+	# https://caddyserver.com/docs/caddyfile/directives/basic_auth#basicauth
+	#	basic_auth {
+	#		# Username "Bob", password "hiccup"
+	#		Bob $2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG
+	#	}
 }

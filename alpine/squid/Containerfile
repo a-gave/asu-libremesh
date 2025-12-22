@@ -1,0 +1,23 @@
+# from https://git.launchpad.net/~ubuntu-docker-images/ubuntu-docker-images/+git/squid/plain/
+FROM alpine:latest
+
+ENV TZ=UTC
+
+RUN apk update && apk upgrade && apk add \
+  bash \
+  squid \
+  ca-certificates \
+  tzdata \
+  && rm -rf /var/cache/apk/* /tmp/*
+
+RUN sed -i 's/^# http_access allow localnet/http_access allow localnet/' /etc/squid/squid.conf \
+  && mkdir /etc/squid/conf.d/ \
+  && echo 'max_filedescriptors 1024' >> /etc/squid/conf.d/rock.conf
+
+EXPOSE 3128
+VOLUME /var/log/squid \
+	/var/spool/squid
+
+COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["-f", "/etc/squid/squid.conf", "-NYC"]

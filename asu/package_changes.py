@@ -1,6 +1,7 @@
 import logging
 
 from asu.build_request import BuildRequest
+from asu.config import settings
 
 log = logging.getLogger("rq.worker")
 
@@ -28,6 +29,13 @@ def apply_package_changes(build_request: BuildRequest):
         if package not in build_request.packages:
             build_request.packages.append(package)
             log.debug(f"Added {package} to packages")
+
+    # libremesh: Move profile-* packages at the beginning
+    if settings.allow_instruction_build_packages:
+        if [pkg for pkg in build_request.packages if pkg.startswith("profile-")]:
+            profiles = [p for p in build_request.packages if p.startswith("profile-")]
+            other_packages = list(set(build_request.packages) - set(profiles))
+            build_request.packages = profiles + other_packages
 
     # 23.05 specific changes
     if build_request.version.startswith("23.05"):

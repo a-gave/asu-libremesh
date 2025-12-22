@@ -70,7 +70,11 @@ def _build(build_request: BuildRequest, job=None):
     mounts: list[dict[str, Union[str, bool]]] = []
     environment: dict[str, str] = {}
 
-    image = f"{settings.base_container}:{build_request.target.replace('/', '-')}-{container_version_tag}"
+    image = f"{settings.base_container}:{build_request.target.replace('/', '-')}-{container_version_tag}-alpine"
+
+    # use ib small-flash, es.: agave0/openwrt-imagebuilder:ath79-generic-v24.10.4-alpine-small-flash
+    if build_request.imagebuilder:
+        image = image + "-" + build_request.imagebuilder
 
     if is_snapshot_build(build_request.version):
         environment.update(
@@ -94,15 +98,16 @@ def _build(build_request: BuildRequest, job=None):
     job.meta["imagebuilder_status"] = "container_setup"
     job.save_meta()
 
-    log.info(f"Pulling {image}...")
-    try:
-        podman.images.pull(image)
-    except errors.ImageNotFound:
-        report_error(
-            job,
-            f"Image not found: {image}. If this version was just released, please try again in a few hours as it may take some time to become fully available.",
-        )
-    log.info(f"Pulling {image}... done")
+    if settings.allow_pull_container_images:
+        log.info(f"Pulling {image}...")
+        try:
+            podman.images.pull(image)
+        except errors.ImageNotFound:
+            report_error(
+                job,
+                f"Image not found: {image}. If this version was just released, please try again in a few hours as it may take some time to become fully available.",
+            )
+        log.info(f"Pulling {image}... done")
 
     bin_dir.mkdir(parents=True, exist_ok=True)
     log.debug("Created store path: %s", bin_dir)
@@ -113,18 +118,22 @@ def _build(build_request: BuildRequest, job=None):
         (bin_dir / "keys").mkdir(parents=True, exist_ok=True)
 
         for key in build_request.repository_keys:
-            fingerprint = fingerprint_pubkey_usign(key)
-            log.debug(f"Found key {fingerprint}")
-
-            (bin_dir / "keys" / fingerprint).write_text(
-                f"untrusted comment: {fingerprint}\n{key}"
-            )
+            if build_request.version.lower().startswith("snapshot"):
+                fingerprint = "libremesh.pem"
+                log.debug(f"Found key {fingerprint}")
+                (bin_dir / "keys" / fingerprint).write_text(f"{key}")
+            else:
+                fingerprint = fingerprint_pubkey_usign(key)
+                log.debug(f"Found key {fingerprint}")
+                (bin_dir / "keys" / fingerprint).write_text(
+                    f"untrusted comment: {fingerprint}\n{key}"
+                )
 
             mounts.append(
                 {
                     "type": "bind",
                     "source": str(bin_dir / "keys" / fingerprint),
-                    "target": "/builder/keys/" + fingerprint,
+                    "target": "/builder/keys_dir/" + fingerprint,
                     "read_only": True,
                 },
             )
@@ -134,22 +143,12 @@ def _build(build_request: BuildRequest, job=None):
         repositories = ""
         for name, repo in build_request.repositories.items():
             if repo.startswith(tuple(settings.repository_allow_list)):
-                repositories += f"src/gz {name} {repo}\n"
+                if build_request.version.lower().startswith("snapshot"):
+                    repositories += f"{repo}\n"
+                else:
+                    repositories += f"src/gz {name} {repo}\n"
             else:
                 report_error(job, f"Repository {repo} not allowed")
-
-        repositories += "src imagebuilder file:packages\noption check_signature"
-
-        (bin_dir / "repositories.conf").write_text(repositories)
-
-        mounts.append(
-            {
-                "type": "bind",
-                "source": str(bin_dir / "repositories.conf"),
-                "target": "/builder/repositories.conf",
-                "read_only": True,
-            },
-        )
 
     if build_request.defaults:
         log.debug("Found defaults")
@@ -165,6 +164,20 @@ def _build(build_request: BuildRequest, job=None):
                 "read_only": True,
             },
         )
+
+    # packages starting with profile-* could contain additional build instructions
+    if settings.allow_instruction_build_packages:
+        if [pkg for pkg in build_request.packages if pkg.startswith("profile-")]:
+            Path(str(bin_dir / "manifest")).touch()
+            mounts.append(
+                {
+                    "type": "bind",
+                    "source": str(bin_dir),
+                    "target": "/builder/" + request_hash,
+                    "read_only": False,
+                    "chown": True,
+                },
+            )
 
     log.debug("Mounts: %s", mounts)
 
@@ -189,6 +202,10 @@ def _build(build_request: BuildRequest, job=None):
         if returncode:
             container.kill()
             report_error(job, "Could not set up ImageBuilder")
+
+    returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+        container, ["sh", "-c", ("cp /builder/keys_dir/* /builder/keys/")]
+    )
 
     returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
         container, ["make", "info"]
@@ -231,7 +248,32 @@ def _build(build_request: BuildRequest, job=None):
         )
         log.debug(f"Diffed packages: {build_cmd_packages}")
 
+    if build_request.repositories:
+        log.info("Appending local repositories")
+
+        if build_request.version.lower().startswith("snapshot"):
+            returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                container,
+                ["sh", "-c", (f"echo -e '{repositories}' >> /builder/repositories")],
+            )
+        else:
+            returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                container,
+                [
+                    "sh",
+                    "-c",
+                    (f"echo -e '{repositories}' >> /builder/repositories.conf"),
+                ],
+            )
+
     job.meta["imagebuilder_status"] = "validate_manifest"
+    job.meta["make_manifest_cmd"] = [
+        "make",
+        "manifest",
+        f"PROFILE={build_request.profile}",
+        f"PACKAGES={' '.join(build_cmd_packages)}",
+        "STRIP_ABI=1",
+    ]
     job.save_meta()
 
     if settings.squid_cache and not is_snapshot_build(build_request.version):
@@ -240,17 +282,88 @@ def _build(build_request: BuildRequest, job=None):
             container,
             ["sed", "-i", "s|https|http|g", "repositories.conf", "repositories"],
         )
+        run_cmd(
+            container,
+            [
+                "sed",
+                "-i",
+                f"s|downloads.openwrt.org|{settings.file_host}|g",
+                "repositories.conf",
+                "repositories",
+            ],
+        )
 
     returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
-        container,
-        [
-            "make",
-            "manifest",
-            f"PROFILE={build_request.profile}",
-            f"PACKAGES={' '.join(build_cmd_packages)}",
-            "STRIP_ABI=1",
-        ],
+        container, job.meta["make_manifest_cmd"]
     )
+
+    if returncode and settings.squid_cache:
+        if any(
+            err in job.meta["stderr"]
+            for err in ["Failed to download", "Cannot install package"]
+        ):
+            log.info("Mirror dropped connection or package not found")
+            # fallback to another mirror
+            run_cmd(
+                container,
+                [
+                    "sed",
+                    "-i",
+                    f"s|{settings.file_host}|downloads.openwrt.org|g",
+                    "repositories.conf",
+                ],
+            )
+
+            for x in range(1, 3):
+                log.info(f"Retrying {x}/2")
+                returncode = 0
+                returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                    container, job.meta["make_manifest_cmd"]
+                )
+                if returncode == 0:
+                    break
+
+            if returncode:
+                log.info("Fallback to main server")
+                run_cmd(
+                    container,
+                    [
+                        "sed",
+                        "-i",
+                        f"s|{settings.file_host}|downloads.openwrt.org|g",
+                        "repositories.conf",
+                    ],
+                )
+                returncode = 0
+                returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                    container, job.meta["make_manifest_cmd"]
+                )
+
+        elif any(
+            err in job.meta["stderr"]
+            for err in ["package index are corrupt", "version not as requested"]
+        ):
+            log.info("Retrying without proxy")
+            returncode = 0
+            # retry and update cache
+            # apk has '--force-refresh' also to avoid proxies, do not refresh kmods that are cached longer
+            # try if possible to refresh cache:
+            # # run_cmd(container, ["alias apk="apk --force-refresh"])
+            # opkg fallback to no_proxy try again
+            run_cmd(container, ["rm", "-rf", "/builder/dl/*"])
+            run_cmd(container, ["export", "http_proxy=", "use_proxy="])
+            # run_cmd(container, ["sed", "-i", "s|http|https|g", "repositories.conf"])
+            returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                container, job.meta["make_manifest_cmd"]
+            )
+
+    read_manifest_from_file = 0
+
+    if settings.allow_instruction_build_packages:
+        # 143 = Terminated
+        if returncode == 143:
+            returncode = 0
+            read_manifest_from_file = 1
 
     job.save_meta()
 
@@ -258,7 +371,13 @@ def _build(build_request: BuildRequest, job=None):
         container.kill()
         report_error(job, "Impossible package selection")
 
-    manifest: dict[str, str] = parse_manifest(job.meta["stdout"])
+    if settings.allow_instruction_build_packages and read_manifest_from_file:
+        with open(f"{bin_dir}/manifest", "r") as data:
+            contents = data.read()
+            manifest: dict[str, str] = parse_manifest(contents)
+    else:
+        manifest: dict[str, str] = parse_manifest(job.meta["stdout"])
+
     log.debug(f"Manifest: {manifest}")
 
     # Check if all requested packages are in the manifest
@@ -267,6 +386,22 @@ def _build(build_request: BuildRequest, job=None):
 
     packages_hash: str = get_packages_hash(manifest.keys())
     log.debug(f"Packages Hash: {packages_hash}")
+
+    if build_request.configs and build_request.configs != []:
+        log.info("Applying local configs")
+        configs = "\n".join(build_request.configs)
+        returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+            container,
+            [
+                "sh",
+                "-c",
+                (
+                    f"for config in $(grep '#' '{configs}' | cut -c 2); do sed -i 's/'$config'.*//' /builder/.config ; done; echo '{configs}' >> /builder/.config"
+                ),
+            ],
+        )
+        if returncode:
+            report_error(job, "Could not apply local configs")
 
     job.meta["build_cmd"] = [
         "make",
@@ -295,6 +430,11 @@ def _build(build_request: BuildRequest, job=None):
         job.meta["build_cmd"],
         copy=["/builder/" + request_hash, bin_dir.parent],
     )
+
+    if settings.allow_instruction_build_packages:
+        # Terminated
+        if returncode == 143:
+            returncode = 0
 
     container.kill()
 

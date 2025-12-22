@@ -1,0 +1,71 @@
+{
+  "arch_packages": "mips_24kc",
+  "default_packages": [
+    "base-files",
+    "ca-bundle",
+    "dnsmasq",
+    "dropbear",
+    "firewall4",
+    "fstools",
+    "kmod-ath9k",
+    "kmod-gpio-button-hotplug",
+    "kmod-nft-offload",
+    "libc",
+    "libgcc",
+    "libustream-mbedtls",
+    "logd",
+    "mtd",
+    "netifd",
+    "nftables",
+    "odhcp6c",
+    "odhcpd-ipv6only",
+    "opkg",
+    "ppp",
+    "ppp-mod-pppoe",
+    "procd-ujail",
+    "swconfig",
+    "uboot-envtools",
+    "uci",
+    "uclient-fetch",
+    "urandom-seed",
+    "urngd",
+    "wpad-basic-mbedtls"
+  ],
+  "linux_kernel": {
+    "release": "1",
+    "vermagic": "35ef4dd36891d37023436baa842fa311",
+    "version": "6.6.119"
+  },
+  "metadata_version": 1,
+  "profiles": {
+    "8dev_carambola2": {
+      "device_packages": [
+        "kmod-usb-chipidea2"
+      ],
+      "image_prefix": "openwrt-24.10.5-a2dfc56ba8e0-ath79-generic-8dev_carambola2",
+      "images": [
+        {
+          "filesystem": "squashfs",
+          "name": "openwrt-24.10.5-a2dfc56ba8e0-ath79-generic-8dev_carambola2-squashfs-sysupgrade.bin",
+          "sha256": "f81073f93d7c51eea46e372fb369707dfcf72b901900ee21474a9c24b6629f4d",
+          "sha256_unsigned": "1f813eca5210b2190dadfcccc93150c42c89ad53e582d45895c4b97e40250854",
+          "type": "sysupgrade"
+        }
+      ],
+      "supported_devices": [
+        "8dev,carambola2",
+        "carambola2"
+      ],
+      "titles": [
+        {
+          "model": "Carambola2",
+          "vendor": "8devices"
+        }
+      ]
+    }
+  },
+  "source_date_epoch": 1766005702,
+  "target": "ath79/generic",
+  "version_code": "r29087-d9c5716d1d",
+  "version_number": "24.10.5"
+}

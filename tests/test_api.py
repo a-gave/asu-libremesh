@@ -143,9 +143,10 @@ def test_build_missing_container():
 
     build_request = BuildRequest(
         client="test/1.2.3",
-        target="lantiq/xrx200",
-        profile="bt_homehub-v5a",
-        version="24.10.1",
+        target="x86/64",
+        profile="generic",
+        version="24.10.5",
+        imagebuilder="small-flash",
     )
 
     class fake_job:
@@ -166,7 +167,7 @@ def test_build_missing_container():
                 exc = chain
                 break
         assert str(exc).startswith(
-            "Image not found: ghcr.io/openwrt/imagebuilder:lantiq-xrx200-v24.10.1"
+            "Image not found: docker.io/agave0/openwrt-imagebuilder:x86-64-v24.10.5-alpine-small-flash"
         )
     else:
         assert False, "No exception raised!"
@@ -440,7 +441,7 @@ def test_api_build_conflicting_packages(client):
     response = client.post(
         "/api/v1/build",
         json=dict(
-            version="23.05.5",
+            version="24.10.5",
             target="ath79/generic",
             profile="8dev_carambola2",
             packages=["dnsmasq", "dnsmasq-full"],
@@ -505,7 +506,7 @@ def test_api_build_real_x86(app):
         "/api/v1/build",
         json=dict(
             target="x86/64",
-            version="23.05.5",
+            version="24.10.5",
             packages=["tmux", "vim"],
             profile="some_random_cpu_which_doesnt_exists_as_profile",
         ),
@@ -519,7 +520,7 @@ def test_api_build_real_x86(app):
         "/api/v1/build",
         json=dict(
             target="x86/64",
-            version="23.05.5",
+            version="24.10.5",
             packages=["tmux", "vim"],
             profile="some_random_cpu_which_doesnt_exists_as_profile",
             filesystem="ext4",
@@ -538,7 +539,7 @@ def test_api_build_real_ath79(app):
         "/api/v1/build",
         json=dict(
             target="ath79/generic",
-            version="23.05.5",
+            version="24.10.5",
             packages=["tmux", "vim"],
             profile="8dev,carambola2",  # Test unsanitized profile.
         ),
@@ -552,7 +553,7 @@ def test_api_build_real_ath79(app):
         "/api/v1/build",
         json=dict(
             target="ath79/generic",
-            version="23.05.5",
+            version="24.10.5",
             packages=["tmux", "vim"],
             profile="8dev_carambola2",
             filesystem="squashfs",
@@ -749,11 +750,11 @@ def test_api_build_defaults_filled_too_big(app):
 
 def test_api_revision(client):
     response = client.get(
-        "/api/v1/revision/23.05.5/ath79/generic", follow_redirects=False
+        "/api/v1/revision/24.10.5/ath79/generic", follow_redirects=False
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["revision"] == "r24106-10cc5fcd00"
+    assert data["revision"] == "r29087-d9c5716d1d"
 
 
 def test_api_stats(client):

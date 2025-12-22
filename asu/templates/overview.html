@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
 
-        <title>OpenWrt Sysupgrade Server</title>
+        <title>OpenWrt/LibreMesh Sysupgrade Server</title>
         <link href="/static/style.css" rel="stylesheet" />
     </head>
     <body>
@@ -13,7 +13,14 @@
             </div>
         </header>
         <div class="container">
-            <h1>OpenWrt Sysupgrade Server ({{ version }})</h1>
+            <h1>OpenWrt/LibreMesh Sysupgrade Server ({{ version }})</h1>
+
+            <p>Main server at <a href="https://sysupgrade.antennine.org" target="_blank"
+                >https://sysupgrade.antennine.org</a>
+            </p>
+            <p>Fallback/Testing server at <a href="https://sysupgrade-01.antennine.org" target="_blank"
+            >https://sysupgrade-01.antennine.org</a>
+            </p>
 
             <div class="grid-container">
                 <div class="grid-item">
@@ -100,6 +107,15 @@
                         {% endif %}
                         <b>Maximum requested root filesystem size:</b> {{
                         max_custom_rootfs_size_mb }} MB <br />
+
+                        <b>Allowed package repositories:</b>
+
+                    <ul>
+                        {% for repo in repository_allow_list %}
+                        <li>{{ repo }}</li>
+                        {%- endfor -%}
+                    </ul>
+
                         <b>Available versions on this server:</b>
 
                     <ul>

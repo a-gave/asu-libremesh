@@ -18,17 +18,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set __version__ and poetry version
+        run: |
+          git remote add upstream https://github.com/openwrt/asu
+          git fetch --all
+          TAG="$(git describe upstream/main --tags --always | awk -F"-" '{if (NF>1) {print substr($1, 2)".post"$2} else {print substr($1, 2)}}')"
+          TAG="$TAG-$(git rev-list --count upstream/main..HEAD)"
+          echo "__version__ = \"$TAG\"" > asu/__init__.py
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: openwrt/asu
+          images: agave0/openwrt-asu
           tags: |
             type=semver,pattern={{version}}
             latest
+            alpine
 
       - name: Login to DockerHub
-        if: github.repository_owner == 'openwrt'
+        if: github.repository_owner == 'a-gave'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -38,7 +47,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Containerfile
-          push: ${{ github.repository_owner == 'openwrt' }}
+          file: Containerfile.alpine
+          push: ${{ github.repository_owner == 'a-gave' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

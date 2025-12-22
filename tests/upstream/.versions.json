@@ -1,6 +1,6 @@
 {
-  "stable_version": "23.05.5",
-  "oldstable_version": "22.03.7",
-  "upcoming_version": "24.10.0-rc6",
-  "versions_list": ["1.2.3", "22.03.7", "23.05.5", "24.10.0-rc6"]
+  "stable_version": "24.10.5",
+  "oldstable_version": "23.05.6",
+  "upcoming_version": "25.12.0-rc1",
+  "versions_list": ["1.2.3", "23.05.5", "23.05.6", "24.10.5", "25.12.0-rc1"]
 }

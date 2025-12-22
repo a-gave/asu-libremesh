@@ -26,3 +26,8 @@ asu.egg-info/
 .coverage
 **/__pycache__/
 *.pyc
+
+*~
+redis-data/
+squid-data/
+!/alpine/squid

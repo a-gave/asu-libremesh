@@ -14,12 +14,12 @@ from asu.config import settings
 from asu.routers import api, stats
 from asu.util import (
     client_get,
-    get_branch,
+    # get_branch,
     is_post_kmod_split_build,
     parse_feeds_conf,
     parse_kernel_version,
     parse_packages_file,
-    reload_targets,
+    # reload_targets,
     reload_versions,
 )
 
@@ -134,21 +134,6 @@ def json_v1_latest():
 def generate_branches():
     reload_versions(app)  # Do a reload in case .versions.json has updated.
     branches = dict(**settings.branches)
-
-    for branch in branches:
-        branches[branch]["versions"] = []
-        branches[branch]["name"] = branch
-
-    for version in app.versions:
-        branch_name = get_branch(version)["name"]
-        branches[branch_name]["versions"].append(version)
-
-    for branch in branches:
-        version = branches[branch]["versions"][0]
-        if not app.targets[version]:
-            reload_targets(app, version)
-
-        branches[branch]["targets"] = app.targets[version]
 
     return branches
 

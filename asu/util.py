@@ -135,6 +135,18 @@ def get_file_hash(path: str) -> str:
     return h.hexdigest()
 
 
+def get_configs_hash(configs: list) -> str:
+    """Return sha256sum of configs list
+    Duplicate configs are automatically removed and the list is sorted to be
+    reproducible
+    Args:
+        configs (list): list of configs
+    Returns:
+        str: hash of `req`
+    """
+    return get_str_hash(" ".join(sorted(set(configs))))
+
+
 def get_manifest_hash(manifest: dict[str, str]) -> str:
     """Return sha256sum of package manifest
 
@@ -179,6 +191,10 @@ def get_request_hash(build_request: BuildRequest) -> str:
                 str(build_request.rootfs_size_mb),
                 str(build_request.repository_keys),
                 str(build_request.repositories),
+                str(build_request.imagebuilder),
+                build_request.configs != []
+                and get_configs_hash(build_request.configs)
+                or "",
             ]
         ),
     )
@@ -525,6 +541,16 @@ def reload_versions(app: FastAPI) -> bool:
             if branch_name != "SNAPSHOT"
         ],
     )
+
+    versions_allowed = []
+
+    for branch in settings.branches.keys():
+        log.info(branch)
+        versions_allowed += settings.branches[branch]["versions"]
+        log.info(versions_allowed)
+
+    app.versions = versions_allowed
+    log.info(app.versions)
 
     # Create a key that puts -rcN between -SNAPSHOT and releases.
     app.versions.sort(reverse=True, key=lambda v: v.replace(".0-rc", "-rc"))

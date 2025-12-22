@@ -101,11 +101,13 @@ def app(redis_server, test_path, monkeypatch, upstream):
     settings.async_queue = False
     settings.upstream_url = "http://localhost:8123"
     settings.server_stats = "stats"
+    # settings.squid_cache = True
     for branch in "1.2", "19.07", "21.02":
         if branch not in settings.branches:
             settings.branches[branch] = {
                 "path": "releases/{version}",
                 "enabled": True,
+                "versions": ["1.2.3"],
             }
 
     monkeypatch.setattr("asu.util.get_queue", mocked_redis_queue)
@@ -135,9 +137,9 @@ def upstream(httpserver):
         ".versions.json",
         "releases/1.2.3/.targets.json",
         "releases/1.2.3/targets/testtarget/testsubtarget/profiles.json",
-        "releases/23.05.5/.targets.json",
-        "releases/23.05.5/targets/ath79/generic/profiles.json",
-        "releases/23.05.5/targets/x86/64/profiles.json",
+        "releases/24.10.5/.targets.json",
+        "releases/24.10.5/targets/ath79/generic/profiles.json",
+        "releases/24.10.5/targets/x86/64/profiles.json",
         "snapshots/.targets.json",
         "snapshots/packages/testarch/base/Packages.manifest",
         "snapshots/targets/ath79/generic/profiles.json",

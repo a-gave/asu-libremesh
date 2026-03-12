@@ -199,17 +199,18 @@ def _build(build_request: BuildRequest, job=None):
 
     # packages starting with profile-* could contain additional build instructions
     if settings.allow_instruction_build_packages:
-        if [pkg for pkg in build_request.packages if pkg.startswith("profile-")]:
-            Path(str(bin_dir / "manifest")).touch()
-            mounts.append(
-                {
-                    "type": "bind",
-                    "source": str(bin_dir),
-                    "target": "/builder/" + request_hash,
-                    "read_only": False,
-                    "chown": True,
-                },
-            )
+        if not uses_apk(build_request.version):
+            if [pkg for pkg in build_request.packages if pkg.startswith("profile-")]:
+                Path(str(bin_dir / "manifest")).touch()
+                mounts.append(
+                    {
+                        "type": "bind",
+                        "source": str(bin_dir),
+                        "target": "/builder/" + request_hash,
+                        "read_only": False,
+                        "chown": True,
+                    },
+                )
 
     log.debug("Mounts: %s", mounts)
 
@@ -389,13 +390,17 @@ def _build(build_request: BuildRequest, job=None):
                 container, job.meta["make_manifest_cmd"]
             )
 
-    read_manifest_from_file = 0
+    read_manifest_from_file = False
+    skip_manifest_check = False
 
     if settings.allow_instruction_build_packages:
         # 143 = Terminated
         if returncode == 143:
             returncode = 0
-            read_manifest_from_file = 1
+            if uses_apk(build_request.version):
+                skip_manifest_check = True
+            else:
+                read_manifest_from_file = True
 
     job.save_meta()
 
@@ -403,20 +408,26 @@ def _build(build_request: BuildRequest, job=None):
         container.kill()
         report_error(job, check_package_errors(job.meta["stderr"]))
 
-    if settings.allow_instruction_build_packages and read_manifest_from_file:
-        with open(f"{bin_dir}/manifest", "r") as data:
-            contents = data.read()
-            manifest: dict[str, str] = parse_manifest(contents)
+    if skip_manifest_check:
+        manifest: dict[str, str] = ["", ""]
     else:
-        manifest: dict[str, str] = parse_manifest(job.meta["stdout"])
+        if settings.allow_instruction_build_packages and read_manifest_from_file:
+            with open(f"{bin_dir}/manifest", "r") as data:
+                contents = data.read()
+                manifest: dict[str, str] = parse_manifest(contents)
+        else:
+            manifest: dict[str, str] = parse_manifest(job.meta["stdout"])
 
     log.debug(f"Manifest: {manifest}")
 
     # Check if all requested packages are in the manifest
-    if err := check_manifest(manifest, build_request.packages_versions):
-        report_error(job, err)
+    if skip_manifest_check:
+        packages_hash: str = get_packages_hash(build_request.packages)
+    else:
+        if err := check_manifest(manifest, build_request.packages_versions):
+            report_error(job, err)
+        packages_hash: str = get_packages_hash(manifest.keys())
 
-    packages_hash: str = get_packages_hash(manifest.keys())
     log.debug(f"Packages Hash: {packages_hash}")
 
     if build_request.configs and build_request.configs != []:

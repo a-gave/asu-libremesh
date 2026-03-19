@@ -96,7 +96,7 @@ class Settings(BaseSettings):
             "path_packages": "DEPRECATED",
             "branch_off_rev": 32295,
             "package_changes": package_changes(32295),
-            "versions": ["25.12.0", "25.12-SNAPSHOT"],
+            "versions": ["25.12.1", "25.12.0", "25.12-SNAPSHOT"],
         },
         "24.10": {
             "path": "releases/{version}",
@@ -105,7 +105,7 @@ class Settings(BaseSettings):
             "path_packages": "DEPRECATED",
             "branch_off_rev": 27990,
             "package_changes": package_changes(27990),
-            "versions": ["24.10.5", "24.10.4", "24.10-SNAPSHOT"],
+            "versions": ["24.10.6", "24.10.5", "24.10.4", "24.10-SNAPSHOT"],
         },
         "23.05": {
             "path": "releases/{version}",

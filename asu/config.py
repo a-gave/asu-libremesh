@@ -116,6 +116,7 @@ class Settings(BaseSettings):
     build_failure_ttl: str = "1h"
     max_pending_jobs: int = 200
     job_timeout: str = "10m"
+    feed_host: str = ""
 
 
 settings = Settings()

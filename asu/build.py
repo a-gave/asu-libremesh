@@ -223,6 +223,20 @@ def _build(build_request: BuildRequest, job=None):
             repo_file = (
                 "repositories" if _detect_apk_mode(container) else "repositories.conf"
             )
+
+            if settings.feed_host != "" and not is_snapshot_build(
+                build_request.version
+            ):
+                run_cmd(
+                    container,
+                    [
+                        "sed",
+                        "-i",
+                        f"s|https://downloads.openwrt.org|{settings.feed_host}|g",
+                        repo_file,
+                    ],
+                )
+
             run_cmd(
                 container,
                 ["sed", "-i", f"s|https://|{cache_host}/|g", repo_file],

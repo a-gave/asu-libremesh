@@ -4,6 +4,7 @@
 # override values set here.
 
 upstream_url = "https://downloads.openwrt.org"
+feed_host = "https://openwrt.mirror.garr.it/openwrt"
 allow_defaults = false
 log_level = "INFO"
 
@@ -36,8 +37,10 @@ job_timeout = "10m"
 # s3_public_url = "https://cdn.example.com"
 
 # Allowed external repository URL prefixes
-# repository_allow_list = [
+repository_allow_list = [
 #     "https://raw.githubusercontent.com/libremesh/",
 #     "https://feed.libremesh.org/",
+     "https://downloads.openwrt.org/",
+     "https://openwrt.mirror.garr.it/openwrt/"
 #     "https://buildbot.weimarnetz.de/",
-# ]
+]

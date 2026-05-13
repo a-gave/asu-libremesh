@@ -162,7 +162,7 @@ def _build(build_request: BuildRequest, job=None):
 
     environment: dict[str, str] = {}
 
-    image = f"{settings.base_container}:{build_request.target.replace('/', '-')}-{container_version_tag}"
+    image = f"{settings.base_container}:{build_request.target.replace('/', '-')}-{container_version_tag}{settings.container_suffix}"
 
     if is_snapshot_build(build_request.version):
         environment.update(

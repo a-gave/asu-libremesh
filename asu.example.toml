@@ -8,7 +8,8 @@ allow_defaults = false
 log_level = "INFO"
 
 # Container settings
-base_container = "ghcr.io/openwrt/imagebuilder"
+base_container = "docker.io/agave0/openwrt-imagebuilder"
+container_suffix = "-alpine"
 
 # Caching proxy: uncomment to route build container package downloads
 # through nginx cache (see podman-compose.cache.yml)

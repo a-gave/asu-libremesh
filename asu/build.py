@@ -299,6 +299,13 @@ def _build(build_request: BuildRequest, job=None):
         job.meta["imagebuilder_status"] = "validate_manifest"
         job.save_meta()
 
+        if settings.allow_packages_with_build_instructions:
+            if not _detect_apk_mode(container):
+                if any(pkg.startswith("profile-") for pkg in build_request.packages):
+                    returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                        container, ["touch", f"/builder/{request_hash}/manifest"]
+                    )
+
         returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
             container,
             [
@@ -312,17 +319,41 @@ def _build(build_request: BuildRequest, job=None):
 
         job.save_meta()
 
+        skip_manifest_check = False
+
+        if settings.allow_packages_with_build_instructions:
+            # 143 = Terminated
+            if returncode == 143:
+                returncode = 0
+                if _detect_apk_mode(container):
+                    skip_manifest_check = True
+                else:
+                    returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                        container,
+                        [
+                            "cat",
+                            f"/builder/{request_hash}/manifest",
+                        ],
+                    )
+
         if returncode:
             report_error(job, check_package_errors(job.meta["stderr"]))
 
-        manifest: dict[str, str] = parse_manifest(job.meta["stdout"])
+        if skip_manifest_check:
+            manifest: dict[str, str] = ["", ""]
+        else:
+            manifest: dict[str, str] = parse_manifest(job.meta["stdout"])
+
         log.debug(f"Manifest: {manifest}")
 
-        # Check if all requested packages are in the manifest
-        if err := check_manifest(manifest, build_request.packages_versions):
-            report_error(job, err)
+        if skip_manifest_check:
+            packages_hash: str = get_packages_hash(build_request.packages)
+        else:
+            # Check if all requested packages are in the manifest
+            if err := check_manifest(manifest, build_request.packages_versions):
+                report_error(job, err)
+            packages_hash: str = get_packages_hash(manifest.keys())
 
-        packages_hash: str = get_packages_hash(manifest.keys())
         log.debug(f"Packages Hash: {packages_hash}")
 
         if build_request.configs and build_request.configs != []:
@@ -370,6 +401,12 @@ def _build(build_request: BuildRequest, job=None):
             job.meta["build_cmd"],
             copy=["/builder/" + request_hash, bin_dir.parent],
         )
+
+        if settings.allow_packages_with_build_instructions:
+            # 143 = Terminated
+            if returncode == 143:
+                returncode = 0
+
     finally:
         _cleanup_container(container)
 

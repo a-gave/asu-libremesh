@@ -1,6 +1,7 @@
 import logging
 
 from asu.build_request import BuildRequest
+from asu.config import settings
 
 log = logging.getLogger("rq.worker")
 
@@ -35,6 +36,13 @@ def apply_package_changes(build_request: BuildRequest):
             log.debug(f"Removed {package} from packages")
             return True
         return False
+
+    # Move profile-* packages at the beginning
+    if settings.allow_packages_with_build_instructions:
+        if any(pkg.startswith("profile-") for pkg in build_request.packages):
+            profiles = [p for p in build_request.packages if p.startswith("profile-")]
+            other_packages = list(set(build_request.packages) - set(profiles))
+            build_request.packages = profiles + other_packages
 
     # 23.05 specific changes
     if build_request.version.startswith("23.05"):

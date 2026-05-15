@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     job_timeout: str = "10m"
     feed_host: str = ""
     config_allow_list: list = []
+    allow_packages_with_build_instructions: bool = False
 
 
 settings = Settings()

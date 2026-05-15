@@ -50,3 +50,5 @@ config_allow_list = [
      "CONFIG_VERSION_NUMBER",
      "CONFIG_TARGET_ROOTFS_TARGZ",
 ]
+
+allow_packages_with_build_instructions = false

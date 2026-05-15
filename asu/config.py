@@ -117,6 +117,7 @@ class Settings(BaseSettings):
     max_pending_jobs: int = 200
     job_timeout: str = "10m"
     feed_host: str = ""
+    config_allow_list: list = []
 
 
 settings = Settings()

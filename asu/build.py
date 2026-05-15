@@ -325,6 +325,22 @@ def _build(build_request: BuildRequest, job=None):
         packages_hash: str = get_packages_hash(manifest.keys())
         log.debug(f"Packages Hash: {packages_hash}")
 
+        if build_request.configs and build_request.configs != []:
+            log.info("Applying local configs")
+            configs = "\n".join(build_request.configs)
+            returncode, job.meta["stdout"], job.meta["stderr"] = run_cmd(
+                container,
+                [
+                    "sh",
+                    "-c",
+                    (
+                        f"for config in $(grep '#' '{configs}' | cut -c 2); do sed -i 's/'$config'.*//' /builder/.config ; done; echo '{configs}' >> /builder/.config"
+                    ),
+                ],
+            )
+            if returncode:
+                report_error(job, "Could not apply local configs")
+
         job.meta["build_cmd"] = [
             "make",
             "image",

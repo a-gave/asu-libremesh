@@ -136,6 +136,18 @@ def get_file_hash(path: str) -> str:
     return h.hexdigest()
 
 
+def get_configs_hash(configs: list) -> str:
+    """Return sha256sum of configs list
+    Duplicate configs are automatically removed and the list is sorted to be
+    reproducible
+    Args:
+        configs (list): list of configs
+    Returns:
+        str: hash of `req`
+    """
+    return get_str_hash(" ".join(sorted(set(configs))))
+
+
 def get_manifest_hash(manifest: dict[str, str]) -> str:
     """Return sha256sum of package manifest
 
@@ -181,6 +193,9 @@ def get_request_hash(build_request: BuildRequest) -> str:
                 str(build_request.repository_keys),
                 str(build_request.repositories),
                 build_request.repositories_mode,
+                build_request.configs != []
+                and get_configs_hash(build_request.configs)
+                or "",
             ]
         ),
     )

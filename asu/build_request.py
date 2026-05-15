@@ -9,6 +9,9 @@ TARGET_PATTERN = r"^[\w]*/[\w]*$"
 PKG_VERSION_PATTERN = r"^[\w+.,~-]*$"
 REPO_NAME_PATTERN = r"^[\w.-]+$"
 REPO_URL_PATTERN = r"^https?://\S+$"
+CONFIG_PATTERN = (
+    r"^(# CONFIG_[\w_.-]+ is not set|CONFIG_[\w_.-]+=([\w_.-]+$|\"[^\"][\w_.-]+\"))$"
+)
 
 
 class BuildRequest(BaseModel):
@@ -175,3 +178,17 @@ class BuildRequest(BaseModel):
             """.strip(),
         ),
     ] = None
+    configs: Annotated[
+        list[Annotated[str, Field(pattern=CONFIG_PATTERN)]],
+        Field(
+            examples=[
+                [
+                    "CONFIG_VERSION_DIST=LibreMesh",
+                    "CONFIG_TARGET_ROOTFS_TARGZ=y",
+                ]
+            ],
+            description="""
+                List of configs, only the few ones evaulated by the ImageBuilder.
+            """.strip(),
+        ),
+    ] = []
